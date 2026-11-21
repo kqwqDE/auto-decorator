@@ -1,0 +1,75 @@
+{
+	"geode": "5.11.2",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"version": "v0.1.0",
+	"id": "leon.auto-decorator",
+	"name": "Auto Decorator",
+	"developer": "Leon Schönfeld",
+	"description": "Procedural, shape-aware auto decoration for the Geometry Dash editor: outlines, interior fills, four variations, full-level decorate.",
+	"settings": {
+		"key-toggle-ui": {
+			"type": "keybind",
+			"name": "Open / close Auto Decorator",
+			"default": "F6",
+			"category": "editor"
+		},
+		"key-decorate-selection": {
+			"type": "keybind",
+			"name": "Decorate selected outlines",
+			"default": "F7",
+			"category": "editor"
+		},
+		"key-full-auto": {
+			"type": "keybind",
+			"name": "Full Auto Decorate",
+			"default": "F8",
+			"category": "editor"
+		},
+		"key-next-variation": {
+			"type": "keybind",
+			"name": "Generate another variation set",
+			"default": "F9",
+			"category": "editor"
+		},
+		"channel-base": {
+			"type": "int",
+			"name": "First colour channel",
+			"description": "The five palette slots (primary, secondary, accent, glow, dark) use this channel and the next four.",
+			"default": 901,
+			"min": 1,
+			"max": 995,
+			"control": { "input": true, "slider": false }
+		},
+		"write-palette": {
+			"type": "bool",
+			"name": "Write palette into colour channels",
+			"description": "If off, objects only get the channel IDs and you colour the channels yourself.",
+			"default": true
+		},
+		"max-objects": {
+			"type": "int",
+			"name": "Maximum objects per generation",
+			"default": 12000,
+			"min": 500,
+			"max": 100000,
+			"control": { "input": true, "slider": false }
+		},
+		"ids-bar": { "type": "string", "name": "Override IDs: Bar", "description": "Comma separated object IDs. Leave empty to auto-detect.", "default": "" },
+		"ids-tile": { "type": "string", "name": "Override IDs: Tile", "default": "" },
+		"ids-dot": { "type": "string", "name": "Override IDs: Dot", "default": "" },
+		"ids-triangle": { "type": "string", "name": "Override IDs: Triangle", "default": "" },
+		"ids-glow": { "type": "string", "name": "Override IDs: Glow", "default": "" },
+		"ids-panel": { "type": "string", "name": "Override IDs: Panel", "default": "" },
+		"ids-circuit": { "type": "string", "name": "Override IDs: Circuit line", "default": "" },
+		"ids-crystal": { "type": "string", "name": "Override IDs: Crystal", "default": "" },
+		"ids-plant": { "type": "string", "name": "Override IDs: Plant", "default": "" },
+		"ids-rock": { "type": "string", "name": "Override IDs: Rock", "default": "" },
+		"ids-spark": { "type": "string", "name": "Override IDs: Spark", "default": "" },
+		"ids-gear": { "type": "string", "name": "Override IDs: Gear", "default": "" }
+	}
+}
