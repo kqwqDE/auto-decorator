@@ -103,7 +103,7 @@ CCLabelBMFont* ADPopup::label(std::string const& t, float x, float y, float sc, 
 }
 
 void ADPopup::button(std::string const& t, float x, float y, float w, int act, float sc) {
-    auto* spr = ButtonSprite::create(t.c_str(), int(w / sc), true, "bigFont.fnt", "GJ_button_01.png", 30.f, sc);
+    auto* spr = ButtonSprite::create(t.c_str(), int(w), true, "bigFont.fnt", "GJ_button_01.png", 26.f, sc);
     auto* b = CCMenuItemSpriteExtra::create(spr, this, menu_selector(ADPopup::onAct));
     b->setTag(act); b->setPosition(x, y); m_menu->addChild(b);
 }
