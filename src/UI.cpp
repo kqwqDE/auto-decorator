@@ -43,7 +43,7 @@ void loadPreset() {
     auto parsed = matjson::parse(txt.unwrap());
     if (!parsed) { ed::state().status = "Preset file is corrupt."; return; }
     auto j = parsed.unwrap(); auto& s = ed::state().settings;
-    auto I = [&](char const* k, int d) { return j[k].asInt().unwrapOr(d); };
+    auto I = [&](char const* k, int d) { return static_cast<int>(j[k].asInt().unwrapOr(d)); };
     s.style = ad::Style(std::clamp(I("style", int(s.style)), 0, int(ad::Style::Count) - 1));
     s.categories = uint32_t(I("categories", int(s.categories))); s.density = I("density", s.density); s.detail = I("detail", s.detail); s.glow = I("glow", s.glow);
     s.borderThickness = I("borderThickness", s.borderThickness); s.complexity = I("complexity", s.complexity); s.interiorFill = I("interiorFill", s.interiorFill);
