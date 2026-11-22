@@ -229,17 +229,23 @@ std::string catalogReport() {
 bool scan(bool selectionOnly, std::string& err) {
     auto* lel = LevelEditorLayer::get(); auto* ui = EditorUI::get();
     if (!lel || !ui) { err = "Open a level in the editor first."; return false; }
-    std::vector<GameObject*> src;
+        auto isStructure = [](GameObject* o) {
+        return o->m_objectType == GameObjectType::Solid || o->m_objectType == GameObjectType::Slope;
+    };
+    CCArray* pool = nullptr;
     if (selectionOnly) {
-        CCArray* sel = ui->getSelectedObjects();
-        if (!sel || sel->count() == 0) { err = "Nothing selected. Select the blocks/outlines you want to decorate."; return false; }
-        for (auto* o : CCArrayExt<GameObject*>(sel)) src.push_back(o);
-        bool anySolid = std::any_of(src.begin(), src.end(), [](GameObject* o) { return o->m_objectType == GameObjectType::Solid; });
-        if (anySolid) src.erase(std::remove_if(src.begin(), src.end(), [](GameObject* o) { return o->m_objectType != GameObjectType::Solid; }), src.end());
+        pool = ui->getSelectedObjects();
+        if (!pool || pool->count() == 0) { err = "Nothing selected. Select the blocks/outlines you want to decorate."; return false; }
     } else {
-        for (auto* o : CCArrayExt<GameObject*>(lel->m_objects))
-            if (o->m_objectType == GameObjectType::Solid) src.push_back(o);   // gameplay solids only; decoration never counts
+        pool = lel->m_objects;
     }
+    std::vector<GameObject*> src, any;
+    for (auto* o : CCArrayExt<GameObject*>(pool)) {
+        if (typeinfo_cast<EffectGameObject*>(o)) continue;
+        if (isStructure(o)) src.push_back(o);
+        else if (o->m_objectType != GameObjectType::Hazard) any.push_back(o);
+    }
+    if (src.empty()) src = any;   // layouts made of decoration-type outlines
     // rasterise object rectangles into 30-unit cells
     std::vector<std::pair<int, int>> cells; int minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
     for (auto* o : src) {
