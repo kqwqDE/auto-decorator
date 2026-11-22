@@ -140,7 +140,7 @@ void ADPopup::buildPage(int tab) {
     switch (tab) {
     case 0: { // Home
         this->label(std::string("Style: ") + ad::styleName(S.style), CX0, top, .42f);
-        this->button("<", CX0 + 190.f, top, 26.f, ActStylePrev, .5f); this->button(">", CX0 + 222.f, top, 26.f, ActStyleNext, .5f);
+        this->button("<", CX0 + 190.f, top, 26.f, ActStylePrev, .5f); this->button(">", CX0 + 236.f, top, 26.f, ActStyleNext, .5f);
         this->button("FULL AUTO DECORATE", CX0 + 150.f, top - 55.f, 290.f, ActFullAuto, .85f);
         this->button("Decorate selected outlines", CX0 + 150.f, top - 100.f, 220.f, ActDecorSel, .55f);
         this->label("Preview opens as real objects. Apply = one editor undo step.", CX0, top - 135.f, .28f);
@@ -189,7 +189,7 @@ void ADPopup::buildPage(int tab) {
             this->toggler(kCats[i], CX0 + 10.f + float(i / 4) * 90.f, top - float(i % 4) * 24.f, S.has(bit), [&S, bit](bool v) { if (v) S.categories |= uint32_t(bit); else S.categories &= ~uint32_t(bit); }); }
         this->button("Rebuild catalog", CX0 + 240.f, top - 10.f, 110.f, ActCatalog, .45f);
         this->label("Resolved object IDs per role:", CX0, top - 100.f, .3f);
-        m_info = this->label(ed::catalogReport(), CX0, top - 112.f, .26f, ccp(0.f, 1.f)); statusLine(); break; }
+        m_info = this->label(ed::catalogReport(), CX0, top - 112.f, .22f, ccp(0.f, 1.f)); statusLine(); break; }
     case 6: { // Variations
         for (int i = 0; i < 4; i++) {
             std::string t = "Variation " + std::to_string(i + 1);
@@ -202,15 +202,15 @@ void ADPopup::buildPage(int tab) {
         statusLine(); break; }
     case 7: { // Styles & presets
         this->label(std::string("Style: ") + ad::styleName(S.style), CX0, top, .42f);
-        this->button("<", CX0 + 190.f, top, 26.f, ActStylePrev, .5f); this->button(">", CX0 + 222.f, top, 26.f, ActStyleNext, .5f);
+        this->button("<", CX0 + 190.f, top, 26.f, ActStylePrev, .5f); this->button(">", CX0 + 236.f, top, 26.f, ActStyleNext, .5f);
         this->label(std::string("Colours: ") + kPalModes[std::min(3, int(S.paletteMode))], CX0, top - 30.f, .34f);
-        this->button("<", CX0 + 190.f, top - 30.f, 26.f, ActPalModePrev, .5f); this->button(">", CX0 + 222.f, top - 30.f, 26.f, ActPalModeNext, .5f);
+        this->button("<", CX0 + 190.f, top - 30.f, 26.f, ActPalModePrev, .5f); this->button(">", CX0 + 236.f, top - 30.f, 26.f, ActPalModeNext, .5f);
         auto pals = ad::presetPalettes();
         this->label(std::string("Preset: ") + pals[size_t(S.paletteIndex) % pals.size()].name, CX0, top - 58.f, .34f);
-        this->button("<", CX0 + 190.f, top - 58.f, 26.f, ActPalPrev, .5f); this->button(">", CX0 + 222.f, top - 58.f, 26.f, ActPalNext, .5f);
+        this->button("<", CX0 + 190.f, top - 58.f, 26.f, ActPalPrev, .5f); this->button(">", CX0 + 236.f, top - 58.f, 26.f, ActPalNext, .5f);
         this->button("New random palette", CX0 + 80.f, top - 88.f, 140.f, ActPalNew, .42f);
         this->label("Preset slot " + std::to_string(g_slot), CX0, top - 120.f, .34f);
-        this->button("Slot", CX0 + 120.f, top - 120.f, 40.f, ActSlotNext, .42f); this->button("Save", CX0 + 170.f, top - 120.f, 45.f, ActSave, .42f); this->button("Load", CX0 + 222.f, top - 120.f, 45.f, ActLoad, .42f);
+        this->button("Slot", CX0 + 120.f, top - 120.f, 40.f, ActSlotNext, .42f); this->button("Save", CX0 + 170.f, top - 120.f, 45.f, ActSave, .42f); this->button("Load", CX0 + 236.f, top - 120.f, 45.f, ActLoad, .42f);
         statusLine(); break; }
     case 8: { // Advanced
         struct Row { char const* n; int lo, hi; int* v; };

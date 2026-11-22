@@ -1,6 +1,7 @@
 #include "Editor.hpp"
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <sstream>
 
 using namespace geode::prelude;
@@ -58,20 +59,8 @@ std::optional<ad::Role> roleForName(std::string n) {
     return std::nullopt;
 }
 
-bool measure(int key, Entry& out, bool requireDecoration = true) {
-    auto* tb = ObjectToolbox::sharedState();
-    char const* frame = tb->intKeyToFrame(key);
-    if (!frame || !*frame) return false;
-    if (!CCSpriteFrameCache::get()->spriteFrameByName(frame)) return false;
-    auto* o = GameObject::createWithKey(key);
-    if (!o) return false;
-    if (requireDecoration && o->m_objectType != GameObjectType::Decoration) return false;
-    if (typeinfo_cast<EffectGameObject*>(o)) return false;        // never use triggers
-    auto sz = o->getContentSize();
-    out.id = key; out.frame = frame;
-    out.w = sz.width > 1.f ? sz.width : 30.f; out.h = sz.height > 1.f ? sz.height : 30.f;
-    return true;
-}
+struct Diag { int keys = 0, created = 0, deco = 0; std::map<int, int> types; std::vector<std::string> samples; };
+Diag g_diag;
 
 std::vector<int> parseIds(std::string const& s) {
     std::vector<int> r; std::stringstream ss(s); std::string t;
@@ -79,38 +68,59 @@ std::vector<int> parseIds(std::string const& s) {
     return r;
 }
 
+// Creates the object once and reads frame name, real type and size.
+GameObject* probe(int key, std::string& frameOut) {
+    auto* tb = ObjectToolbox::sharedState(); if (!tb) return nullptr;
+    char const* frame = tb->intKeyToFrame(key);
+    if (!frame || !*frame) return nullptr;
+    frameOut = frame;
+    return GameObject::createWithKey(key);
+}
+
 void buildCatalog() {
-    g_cat = Catalog();
+    g_cat = Catalog(); g_diag = Diag();
     auto* mod = Mod::get();
-    // 1) overrides
+    auto sizeOf = [](GameObject* o, Entry& en) {
+        auto sz = o->getContentSize();
+        en.w = sz.width > 1.f ? sz.width : 30.f; en.h = sz.height > 1.f ? sz.height : 30.f;
+    };
+    // 1) user overrides
     for (int r = 0; r < int(ad::Role::Count); r++)
         for (int id : parseIds(mod->getSettingValue<std::string>(std::string("ids-") + kRoleKeys[r]))) {
-            Entry en; if (measure(id, en, false)) g_cat.e[size_t(r)].push_back(en);
+            Entry en; std::string fr; auto* o = probe(id, fr);
+            if (o) { en.id = id; en.frame = fr; sizeOf(o, en); g_cat.e[size_t(r)].push_back(en); }
         }
-    // 2) auto detection through frame names
-    constexpr int kMaxKey = 5000, kPerRole = 24;
-    for (int key = 1; key <= kMaxKey; key++) {
-        char const* f = ObjectToolbox::sharedState()->intKeyToFrame(key);
-        if (!f || !*f) continue;
-        auto role = roleForName(f); if (!role) continue;
-        auto& list = g_cat.e[size_t(*role)];
-        if (int(list.size()) >= kPerRole) continue;
-        Entry en; if (measure(key, en)) list.push_back(en);
+    // 2) scan every object key once; keep only real, non-interactive decoration objects
+    std::vector<Entry> deco;
+    for (int key = 1; key <= 6000; key++) {
+        std::string fr; auto* o = probe(key, fr); if (!fr.size()) continue;
+        g_diag.keys++;
+        if (!o) continue;
+        g_diag.created++; g_diag.types[int(o->m_objectType)]++;
+        if (o->m_objectType != GameObjectType::Decoration) continue;
+        if (typeinfo_cast<EffectGameObject*>(o)) continue;
+        g_diag.deco++;
+        Entry en; en.id = key; en.frame = fr; sizeOf(o, en); deco.push_back(en);
+        if (g_diag.samples.size() < 5) g_diag.samples.push_back(std::to_string(key) + "=" + fr);
     }
-    // 3) shape based fallback for the two plain-rectangle roles
+    // 3) roles by frame-name keywords
+    for (auto& en : deco) {
+        auto role = roleForName(en.frame); if (!role) continue;
+        auto& list = g_cat.e[size_t(*role)]; if (list.size() < 24) list.push_back(en);
+    }
+    // 4) plain shapes by proportions (used when no keyword matched)
     auto& bars = g_cat.e[size_t(ad::Role::Bar)]; auto& tiles = g_cat.e[size_t(ad::Role::Tile)];
-    if (bars.empty() || tiles.empty()) {
-        for (int key = 1; key <= kMaxKey && (int(bars.size()) < 6 || int(tiles.size()) < 6); key++) {
-            Entry en; if (!measure(key, en)) continue;
-            float asp = std::max(en.w, en.h) / std::max(1.f, std::min(en.w, en.h));
-            if (asp >= 3.f && bars.empty()) bars.push_back(en);
-            else if (asp < 1.25f && tiles.size() < 6 && en.w >= 20.f) tiles.push_back(en);
-        }
+    for (auto& en : deco) {
+        float asp = std::max(en.w, en.h) / std::max(1.f, std::min(en.w, en.h));
+        if (asp >= 3.f && bars.size() < 8 && bars.empty()) bars.push_back(en);
+        else if (asp < 1.3f && en.w >= 20.f && tiles.size() < 8 && tiles.empty()) tiles.push_back(en);
     }
-    // 4) fallback chain so every role resolves to *something* real
+    // 5) last resort: if a basic role is still empty use any decoration, so something real is always placed
     using R = ad::Role;
-    std::pair<R, R> chain[] = {{R::Bar, R::Tile}, {R::Dot, R::Tile}, {R::Triangle, R::Tile}, {R::Glow, R::Tile}, {R::Panel, R::Tile}, {R::Circuit, R::Bar},
-                               {R::Spark, R::Dot}, {R::Crystal, R::Triangle}, {R::Plant, R::Triangle}, {R::Rock, R::Tile}, {R::Gear, R::Dot}};
+    for (R r : {R::Bar, R::Tile, R::Dot, R::Triangle, R::Glow, R::Panel})
+        if (g_cat.e[size_t(r)].empty()) for (size_t i = 0; i < deco.size() && i < 6; i++) g_cat.e[size_t(r)].push_back(deco[i]);
+    // 6) fallback chain for the remaining roles
+    std::pair<R, R> chain[] = {{R::Circuit, R::Bar}, {R::Spark, R::Dot}, {R::Crystal, R::Triangle}, {R::Plant, R::Triangle}, {R::Rock, R::Tile}, {R::Gear, R::Dot}};
     for (auto [from, to] : chain) if (g_cat.e[size_t(from)].empty()) g_cat.e[size_t(from)] = g_cat.e[size_t(to)];
     g_cat.built = true;
 }
@@ -214,14 +224,15 @@ void rebuildCatalog() { buildCatalog(); }
 
 std::string catalogReport() {
     if (!g_cat.built) buildCatalog();
-    std::string s;
+    std::string s = "Scan: " + std::to_string(g_diag.keys) + " keys, " + std::to_string(g_diag.created) + " created, " + std::to_string(g_diag.deco) + " decoration\n";
+    for (size_t i = 0; i < g_diag.samples.size(); i++) s += g_diag.samples[i] + (i + 1 < g_diag.samples.size() ? "  " : "\n");
     for (int r = 0; r < int(ad::Role::Count); r++) {
         s += std::string(kRoleNames[r]) + ": ";
         auto& v = g_cat.e[size_t(r)];
         if (v.empty()) s += "none";
         for (size_t i = 0; i < v.size() && i < 4; i++) s += std::to_string(v[i].id) + (i + 1 < std::min<size_t>(4, v.size()) ? ", " : "");
-        if (v.size() > 4) s += " (+" + std::to_string(v.size() - 4) + ")";
-        s += "\n";
+        s += "   ";
+        if (r % 3 == 2) s += "\n";
     }
     return s;
 }
@@ -229,16 +240,12 @@ std::string catalogReport() {
 bool scan(bool selectionOnly, std::string& err) {
     auto* lel = LevelEditorLayer::get(); auto* ui = EditorUI::get();
     if (!lel || !ui) { err = "Open a level in the editor first."; return false; }
-        auto isStructure = [](GameObject* o) {
-        return o->m_objectType == GameObjectType::Solid || o->m_objectType == GameObjectType::Slope;
-    };
+    auto isStructure = [](GameObject* o) { return o->m_objectType == GameObjectType::Solid || o->m_objectType == GameObjectType::Slope; };
     CCArray* pool = nullptr;
     if (selectionOnly) {
         pool = ui->getSelectedObjects();
         if (!pool || pool->count() == 0) { err = "Nothing selected. Select the blocks/outlines you want to decorate."; return false; }
-    } else {
-        pool = lel->m_objects;
-    }
+    } else pool = lel->m_objects;
     std::vector<GameObject*> src, any;
     for (auto* o : CCArrayExt<GameObject*>(pool)) {
         if (typeinfo_cast<EffectGameObject*>(o)) continue;
@@ -258,7 +265,7 @@ bool scan(bool selectionOnly, std::string& err) {
             cells.emplace_back(x, y); minX = std::min(minX, x); maxX = std::max(maxX, x); minY = std::min(minY, y); maxY = std::max(maxY, y);
         }
     }
-    if (cells.empty()) { err = "No solid blocks found to decorate."; return false; }
+    if (cells.empty()) { err = "No blocks found (checked " + std::to_string(pool->count()) + " objects)."; return false; }
     if (int64_t(maxX - minX + 7) * int64_t(maxY - minY + 7) > 30'000'000) { err = "Level area is too large to analyse."; return false; }
     auto grid = ad::Grid::make(minX, minY, maxX, maxY, 4);
     for (auto& c : cells) grid.set(c.first, c.second);
