@@ -156,7 +156,7 @@ void writePalette(LevelEditorLayer* lel, ad::Palette const& p) {
 class Builder : public CCNode {
 public:
     std::vector<ad::Item> items; ad::Palette palette; uint64_t seed = 0; size_t next = 0;
-    std::vector<Ref<GameObject>> created; std::function<void(bool)> done; bool cancelled = false;
+    std::vector<Ref<GameObject>> created; std::function<void(bool)> done; bool cancelled = false; size_t noCat = 0, failed = 0;
 
     static Builder* create(ad::Variation const& v, std::function<void(bool)> cb) {
         auto* b = new Builder(); b->init(); b->autorelease();
@@ -174,9 +174,9 @@ public:
         while (budget-- && next < items.size()) {
             auto const& it = items[next]; size_t idx = next++;
             uint64_t key = (it.role == ad::Role::Crystal || it.role == ad::Role::Plant || it.role == ad::Role::Rock || it.role == ad::Role::Spark) ? seed + idx % 3 : seed;
-            auto const* en = pick(it.role, key); if (!en) continue;
+            auto const* en = pick(it.role, key); if (!en) { noCat++; continue; }
             auto* o = lel->createObject(en->id, ccp(it.x * ad::kUnit, it.y * ad::kUnit), true);
-            if (!o) continue;
+            if (!o) { failed++; continue; }
             bool twoD = it.role != ad::Role::Bar && it.role != ad::Role::Circuit;
             float baseRot = 0.f, sx, sy;
             if (twoD) { sx = it.sx * ad::kUnit / en->w; sy = it.sy * ad::kUnit / en->h; }
@@ -300,7 +300,7 @@ void showPreview(int idx) {
     st.status = "Creating preview of variation " + std::to_string(idx + 1) + "...";
     auto* b = Builder::create(st.variations[size_t(idx)], [idx](bool ok) {
         auto& s = g_state; s.busy = false;
-        if (ok && g_builder) { s.preview = std::move(g_builder->created); s.previewing = true; s.status = "Preview " + std::to_string(idx + 1) + ": " + std::to_string(s.preview.size()) + " objects. Apply or Cancel."; }
+        if (ok && g_builder) { s.preview = std::move(g_builder->created); s.previewing = true; s.status = "Preview " + std::to_string(idx + 1) + ": " + std::to_string(s.preview.size()) + " objects (planned " + std::to_string(g_builder->items.size()) + ", no sprite " + std::to_string(g_builder->noCat) + ", create failed " + std::to_string(g_builder->failed) + ")."; }
         else { if (g_builder) removeObjects(g_builder->created); s.previewing = false; s.status = "Preview cancelled."; }
         g_builder = nullptr;
     });
