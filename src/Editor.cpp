@@ -59,7 +59,7 @@ std::optional<ad::Role> roleForName(std::string n) {
     return std::nullopt;
 }
 
-struct Diag { int keys = 0, created = 0, deco = 0; std::map<int, int> types; std::vector<std::string> samples; };
+struct Diag { int keys = 0, created = 0, deco = 0; std::map<int, int> typesA, typesB; std::string mode; std::vector<std::string> samples; };
 Diag g_diag;
 
 std::vector<int> parseIds(std::string const& s) {
@@ -90,18 +90,38 @@ void buildCatalog() {
             Entry en; std::string fr; auto* o = probe(id, fr);
             if (o) { en.id = id; en.frame = fr; sizeOf(o, en); g_cat.e[size_t(r)].push_back(en); }
         }
-    // 2) scan every object key once; keep only real, non-interactive decoration objects
-    std::vector<Entry> deco;
+    // 2) scan every object key once. Newly created objects do not always carry a usable object type, so we
+    //    first collect everything, then decide which type signal is informative.
+    struct Probe { Entry en; int tA, tB; };
+    std::vector<Probe> all;
     for (int key = 1; key <= 6000; key++) {
-        std::string fr; auto* o = probe(key, fr); if (!fr.size()) continue;
+        std::string fr; auto* o = probe(key, fr); if (fr.empty()) continue;
         g_diag.keys++;
         if (!o) continue;
-        g_diag.created++; g_diag.types[int(o->m_objectType)]++;
-        if (o->m_objectType != GameObjectType::Decoration) continue;
-        if (typeinfo_cast<EffectGameObject*>(o)) continue;
-        g_diag.deco++;
-        Entry en; en.id = key; en.frame = fr; sizeOf(o, en); deco.push_back(en);
-        if (g_diag.samples.size() < 5) g_diag.samples.push_back(std::to_string(key) + "=" + fr);
+        if (typeinfo_cast<EffectGameObject*>(o)) continue;          // triggers, portals, pads, orbs: never used
+        g_diag.created++;
+        int tA = int(o->m_objectType), tB = int(o->getType());
+        g_diag.typesA[tA]++; g_diag.typesB[tB]++;
+        Entry en; en.id = key; en.frame = fr; sizeOf(o, en);
+        all.push_back({en, tA, tB});
+    }
+    bool infoA = g_diag.typesA.size() > 1, infoB = g_diag.typesB.size() > 1;
+    int decoType = int(GameObjectType::Decoration);
+    auto looksDecorative = [](std::string n) {
+        std::transform(n.begin(), n.end(), n.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+        if (n.find("spike") != std::string::npos || n.find("saw") != std::string::npos || n.find("portal") != std::string::npos ||
+            n.find("pad") != std::string::npos || n.find("ring") != std::string::npos || n.find("orb") != std::string::npos ||
+            n.find("square") != std::string::npos || n.find("blockoutline") != std::string::npos || n.find("coin") != std::string::npos) return false;
+        return n.rfind("d_", 0) == 0 || n.find("gradient") != std::string::npos || n.find("glow") != std::string::npos ||
+               n.find("particle") != std::string::npos || n.find("pixelart") != std::string::npos;
+    };
+    g_diag.mode = infoB ? "type via getType()" : infoA ? "type via m_objectType" : "type unavailable: using frame names";
+    std::vector<Entry> deco;
+    for (auto& pr : all) {
+        bool isDeco = infoB ? pr.tB == decoType : infoA ? pr.tA == decoType : looksDecorative(pr.en.frame);
+        if (!isDeco) continue;
+        g_diag.deco++; deco.push_back(pr.en);
+        if (g_diag.samples.size() < 5) g_diag.samples.push_back(std::to_string(pr.en.id) + "=" + pr.en.frame);
     }
     // 3) roles by frame-name keywords
     for (auto& en : deco) {
@@ -224,7 +244,8 @@ void rebuildCatalog() { buildCatalog(); }
 
 std::string catalogReport() {
     if (!g_cat.built) buildCatalog();
-    std::string s = "Scan: " + std::to_string(g_diag.keys) + " keys, " + std::to_string(g_diag.created) + " created, " + std::to_string(g_diag.deco) + " decoration\n";
+    std::string s = "Scan: " + std::to_string(g_diag.keys) + " keys, " + std::to_string(g_diag.created) + " created, " + std::to_string(g_diag.deco) + " decoration (" + g_diag.mode + ")\n";
+    { std::string t = "Types: "; for (auto& [k, v] : g_diag.typesA) t += std::to_string(k) + ":" + std::to_string(v) + " "; t += "| "; for (auto& [k, v] : g_diag.typesB) t += std::to_string(k) + ":" + std::to_string(v) + " "; s += t + "\n"; }
     for (size_t i = 0; i < g_diag.samples.size(); i++) s += g_diag.samples[i] + (i + 1 < g_diag.samples.size() ? "  " : "\n");
     for (int r = 0; r < int(ad::Role::Count); r++) {
         s += std::string(kRoleNames[r]) + ": ";
